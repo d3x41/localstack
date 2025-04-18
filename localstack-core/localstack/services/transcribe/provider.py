@@ -1,7 +1,6 @@
 import datetime
 import json
 import logging
-import os
 import threading
 import wave
 from functools import cache
@@ -43,6 +42,11 @@ from localstack.utils.files import new_tmp_file
 from localstack.utils.http import download
 from localstack.utils.run import run
 from localstack.utils.threads import start_thread
+
+# Amazon Transcribe service calls are limited to four hours (or 2 GB) per API call for our batch service.
+# The streaming service can accommodate open connections up to four hours long.
+# See https://aws.amazon.com/transcribe/faqs/
+MAX_AUDIO_DURATION_SECONDS = 60 * 60 * 4
 
 LOG = logging.getLogger(__name__)
 
@@ -124,8 +128,6 @@ class TranscribeProvider(TranscribeApi):
         # Install and configure vosk
         vosk_package.install()
 
-        # Vosk must be imported only after setting the required env vars
-        os.environ["VOSK_MODEL_PATH"] = str(LANGUAGE_MODEL_DIR)
         from vosk import SetLogLevel  # noqa
 
         # Suppress Vosk logging
@@ -230,7 +232,7 @@ class TranscribeProvider(TranscribeApi):
     #
 
     @staticmethod
-    def download_model(name: str):
+    def download_model(name: str) -> str:
         """
         Download a Vosk language model to LocalStack cache directory. Do nothing if model is already downloaded.
 
@@ -240,8 +242,10 @@ class TranscribeProvider(TranscribeApi):
         model_path = LANGUAGE_MODEL_DIR / name
 
         with _DL_LOCK:
-            if model_path.exists():
-                return
+            # check if model path exists and is not empty
+            if model_path.exists() and any(model_path.iterdir()):
+                LOG.debug("Using a pre-downloaded language model: %s", model_path)
+                return str(model_path)
             else:
                 model_path.mkdir(parents=True)
 
@@ -266,6 +270,8 @@ class TranscribeProvider(TranscribeApi):
                 model_ref.extractall(model_path.parent)
 
             Path(model_zip_path).unlink()
+
+        return str(model_path)
 
     #
     # Threads
@@ -304,6 +310,11 @@ class TranscribeProvider(TranscribeApi):
             format = ffprobe_output["format"]["format_name"]
             LOG.debug("Media format detected as: %s", format)
             job["MediaFormat"] = SUPPORTED_FORMAT_NAMES[format]
+            duration = ffprobe_output["format"]["duration"]
+
+            if float(duration) >= MAX_AUDIO_DURATION_SECONDS:
+                failure_reason = "Invalid file size: file size too large. Maximum audio duration is 4.000000 hours.Check the length of the file and try your request again."
+                raise RuntimeError()
 
             # Determine the sample rate of input audio if possible
             for stream in ffprobe_output["streams"]:
@@ -338,10 +349,10 @@ class TranscribeProvider(TranscribeApi):
             language_code = job["LanguageCode"]
             model_name = LANGUAGE_MODELS[language_code]
             self._setup_vosk()
-            self.download_model(model_name)
+            model_path = self.download_model(model_name)
             from vosk import KaldiRecognizer, Model  # noqa
 
-            model = Model(model_name=model_name)
+            model = Model(model_path=model_path, model_name=model_name)
 
             tc = KaldiRecognizer(model, audio.getframerate())
             tc.SetWords(True)
