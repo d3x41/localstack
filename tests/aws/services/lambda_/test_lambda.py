@@ -128,6 +128,7 @@ TEST_LAMBDA_PYTHON_MULTIPLE_HANDLERS = os.path.join(
 )
 TEST_LAMBDA_NOTIFIER = os.path.join(THIS_FOLDER, "functions/lambda_notifier.py")
 TEST_LAMBDA_CLOUDWATCH_LOGS = os.path.join(THIS_FOLDER, "functions/lambda_cloudwatch_logs.py")
+TEST_LAMBDA_XRAY_TRACEID = os.path.join(THIS_FOLDER, "functions/xray_tracing_traceid.py")
 
 PYTHON_TEST_RUNTIMES = RUNTIMES_AGGREGATED["python"]
 NODE_TEST_RUNTIMES = RUNTIMES_AGGREGATED["nodejs"]
@@ -2539,6 +2540,59 @@ class TestLambdaConcurrency:
         assert result2 == "on-demand"
 
     @markers.aws.validated
+    def test_provisioned_concurrency_on_alias(self, create_lambda_function, snapshot, aws_client):
+        """
+        Tests provisioned concurrency created and invoked using an alias
+        """
+        # TODO add test that you cannot set provisioned concurrency on both alias and version it points to
+        # TODO can you set provisioned concurrency on multiple aliases pointing to the same function version?
+        min_concurrent_executions = 10 + 5
+        check_concurrency_quota(aws_client, min_concurrent_executions)
+
+        func_name = f"test_lambda_{short_uid()}"
+        alias_name = "live"
+
+        create_lambda_function(
+            func_name=func_name,
+            handler_file=TEST_LAMBDA_INVOCATION_TYPE,
+            runtime=Runtime.python3_12,
+            client=aws_client.lambda_,
+        )
+
+        v1 = aws_client.lambda_.publish_version(FunctionName=func_name)
+        aws_client.lambda_.create_alias(
+            FunctionName=func_name, Name=alias_name, FunctionVersion=v1["Version"]
+        )
+
+        put_provisioned = aws_client.lambda_.put_provisioned_concurrency_config(
+            FunctionName=func_name, Qualifier=alias_name, ProvisionedConcurrentExecutions=5
+        )
+        snapshot.match("put_provisioned_5", put_provisioned)
+
+        get_provisioned_prewait = aws_client.lambda_.get_provisioned_concurrency_config(
+            FunctionName=func_name, Qualifier=alias_name
+        )
+
+        snapshot.match("get_provisioned_prewait", get_provisioned_prewait)
+        assert wait_until(concurrency_update_done(aws_client.lambda_, func_name, alias_name))
+        get_provisioned_postwait = aws_client.lambda_.get_provisioned_concurrency_config(
+            FunctionName=func_name, Qualifier=alias_name
+        )
+        snapshot.match("get_provisioned_postwait", get_provisioned_postwait)
+
+        invoke_result1 = aws_client.lambda_.invoke(FunctionName=func_name, Qualifier=alias_name)
+        result1 = json.load(invoke_result1["Payload"])
+        assert result1 == "provisioned-concurrency"
+
+        invoke_result1 = aws_client.lambda_.invoke(FunctionName=func_name, Qualifier=v1["Version"])
+        result1 = json.load(invoke_result1["Payload"])
+        assert result1 == "provisioned-concurrency"
+
+        invoke_result2 = aws_client.lambda_.invoke(FunctionName=func_name, Qualifier="$LATEST")
+        result2 = json.load(invoke_result2["Payload"])
+        assert result2 == "on-demand"
+
+    @markers.aws.validated
     def test_lambda_provisioned_concurrency_scheduling(
         self, snapshot, create_lambda_function, aws_client
     ):
@@ -2567,7 +2621,7 @@ class TestLambdaConcurrency:
         )
         snapshot.match("get_provisioned_postwait", get_provisioned_postwait)
 
-        # Schedule Lambda to provisioned concurrency instead of launching a new on-demand instance
+        # Invoke should favor provisioned concurrency function over launching a new on-demand instance
         invoke_result = aws_client.lambda_.invoke(
             FunctionName=func_name,
             Qualifier=v1["Version"],

@@ -2316,6 +2316,11 @@ class IpamManagementState(StrEnum):
     ignored = "ignored"
 
 
+class IpamMeteredAccount(StrEnum):
+    ipam_owner = "ipam-owner"
+    resource_owner = "resource-owner"
+
+
 class IpamNetworkInterfaceAttachmentStatus(StrEnum):
     available = "available"
     in_use = "in-use"
@@ -3171,6 +3176,7 @@ class ServiceConnectivityType(StrEnum):
 class ServiceManaged(StrEnum):
     alb = "alb"
     nlb = "nlb"
+    rnat = "rnat"
 
 
 class ServiceState(StrEnum):
@@ -6104,6 +6110,14 @@ class ClientLoginBannerResponseOptions(TypedDict, total=False):
     BannerText: Optional[String]
 
 
+class ClientRouteEnforcementOptions(TypedDict, total=False):
+    Enforced: Optional[Boolean]
+
+
+class ClientRouteEnforcementResponseOptions(TypedDict, total=False):
+    Enforced: Optional[Boolean]
+
+
 class FederatedAuthentication(TypedDict, total=False):
     SamlProviderArn: Optional[String]
     SelfServiceSamlProviderArn: Optional[String]
@@ -6202,6 +6216,7 @@ class ClientVpnEndpoint(TypedDict, total=False):
     ClientConnectOptions: Optional[ClientConnectResponseOptions]
     SessionTimeoutHours: Optional[Integer]
     ClientLoginBannerOptions: Optional[ClientLoginBannerResponseOptions]
+    ClientRouteEnforcementOptions: Optional[ClientRouteEnforcementResponseOptions]
     DisconnectOnSessionTimeout: Optional[Boolean]
 
 
@@ -6551,6 +6566,7 @@ class CreateClientVpnEndpointRequest(ServiceRequest):
     ClientConnectOptions: Optional[ClientConnectOptions]
     SessionTimeoutHours: Optional[Integer]
     ClientLoginBannerOptions: Optional[ClientLoginBannerOptions]
+    ClientRouteEnforcementOptions: Optional[ClientRouteEnforcementOptions]
     DisconnectOnSessionTimeout: Optional[Boolean]
 
 
@@ -7001,7 +7017,7 @@ class FleetLaunchTemplateOverridesRequest(TypedDict, total=False):
     Placement: Optional[Placement]
     BlockDeviceMappings: Optional[FleetBlockDeviceMappingRequestList]
     InstanceRequirements: Optional[InstanceRequirementsRequest]
-    ImageId: Optional[String]
+    ImageId: Optional[ImageId]
 
 
 FleetLaunchTemplateOverridesListRequest = List[FleetLaunchTemplateOverridesRequest]
@@ -7371,6 +7387,7 @@ class CreateIpamRequest(ServiceRequest):
     ClientToken: Optional[String]
     Tier: Optional[IpamTier]
     EnablePrivateGua: Optional[Boolean]
+    MeteredAccount: Optional[IpamMeteredAccount]
 
 
 class CreateIpamResourceDiscoveryRequest(ServiceRequest):
@@ -7430,6 +7447,7 @@ class Ipam(TypedDict, total=False):
     StateMessage: Optional[String]
     Tier: Optional[IpamTier]
     EnablePrivateGua: Optional[Boolean]
+    MeteredAccount: Optional[IpamMeteredAccount]
 
 
 class CreateIpamResult(TypedDict, total=False):
@@ -18054,6 +18072,7 @@ class ModifyClientVpnEndpointRequest(ServiceRequest):
     ClientConnectOptions: Optional[ClientConnectOptions]
     SessionTimeoutHours: Optional[Integer]
     ClientLoginBannerOptions: Optional[ClientLoginBannerOptions]
+    ClientRouteEnforcementOptions: Optional[ClientRouteEnforcementOptions]
     DisconnectOnSessionTimeout: Optional[Boolean]
 
 
@@ -18356,6 +18375,7 @@ class ModifyIpamRequest(ServiceRequest):
     RemoveOperatingRegions: Optional[RemoveIpamOperatingRegionSet]
     Tier: Optional[IpamTier]
     EnablePrivateGua: Optional[Boolean]
+    MeteredAccount: Optional[IpamMeteredAccount]
 
 
 class ModifyIpamResourceCidrRequest(ServiceRequest):
@@ -20993,6 +21013,7 @@ class Ec2Api:
         client_connect_options: ClientConnectOptions = None,
         session_timeout_hours: Integer = None,
         client_login_banner_options: ClientLoginBannerOptions = None,
+        client_route_enforcement_options: ClientRouteEnforcementOptions = None,
         disconnect_on_session_timeout: Boolean = None,
         **kwargs,
     ) -> CreateClientVpnEndpointResult:
@@ -21199,6 +21220,7 @@ class Ec2Api:
         client_token: String = None,
         tier: IpamTier = None,
         enable_private_gua: Boolean = None,
+        metered_account: IpamMeteredAccount = None,
         **kwargs,
     ) -> CreateIpamResult:
         raise NotImplementedError
@@ -26572,6 +26594,7 @@ class Ec2Api:
         client_connect_options: ClientConnectOptions = None,
         session_timeout_hours: Integer = None,
         client_login_banner_options: ClientLoginBannerOptions = None,
+        client_route_enforcement_options: ClientRouteEnforcementOptions = None,
         disconnect_on_session_timeout: Boolean = None,
         **kwargs,
     ) -> ModifyClientVpnEndpointResult:
@@ -26831,6 +26854,7 @@ class Ec2Api:
         remove_operating_regions: RemoveIpamOperatingRegionSet = None,
         tier: IpamTier = None,
         enable_private_gua: Boolean = None,
+        metered_account: IpamMeteredAccount = None,
         **kwargs,
     ) -> ModifyIpamResult:
         raise NotImplementedError

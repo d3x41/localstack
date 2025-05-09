@@ -24,8 +24,15 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
     _include_property_values: Final[bool]
     _changes: Final[cfn_api.Changes]
 
-    def __init__(self, node_template: NodeTemplate, include_property_values: bool):
-        super().__init__(node_template=node_template)
+    def __init__(
+        self,
+        node_template: NodeTemplate,
+        before_resolved_resources: dict,
+        include_property_values: bool,
+    ):
+        super().__init__(
+            node_template=node_template, before_resolved_resources=before_resolved_resources
+        )
         self._include_property_values = include_property_values
         self._changes = list()
 
@@ -37,7 +44,7 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
     def visit_node_intrinsic_function_fn_get_att(
         self, node_intrinsic_function: NodeIntrinsicFunction
     ) -> PreprocEntityDelta:
-        # TODO: If we can properly compute the before and after value, why should we
+        # Consideration: If we can properly compute the before and after value, why should we
         #  artificially limit the precision of our output to match AWS's?
 
         arguments_delta = self.visit(node_intrinsic_function.arguments)
@@ -64,10 +71,14 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
             after_node_resource = self._get_node_resource_for(
                 resource_name=after_logical_name_of_resource, node_template=self._node_template
             )
+            after_property_delta: PreprocEntityDelta
             after_node_property = self._get_node_property_for(
                 property_name=after_attribute_name, node_resource=after_node_resource
             )
-            after_property_delta = self.visit(after_node_property)
+            if after_node_property is not None:
+                after_property_delta = self.visit(after_node_property)
+            else:
+                after_property_delta = PreprocEntityDelta(after=CHANGESET_KNOWN_AFTER_APPLY)
             if after_property_delta.before == after_property_delta.after:
                 after = after_property_delta.after
             else:
@@ -75,17 +86,30 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
 
         return PreprocEntityDelta(before=before, after=after)
 
+    def visit_node_intrinsic_function_fn_join(
+        self, node_intrinsic_function: NodeIntrinsicFunction
+    ) -> PreprocEntityDelta:
+        # TODO: investigate the behaviour and impact of this logic with the user defining
+        #       {{changeSet:KNOWN_AFTER_APPLY}} string literals as delimiters or arguments.
+        delta = super().visit_node_intrinsic_function_fn_join(
+            node_intrinsic_function=node_intrinsic_function
+        )
+        delta_before = delta.before
+        if isinstance(delta_before, str) and CHANGESET_KNOWN_AFTER_APPLY in delta_before:
+            delta.before = CHANGESET_KNOWN_AFTER_APPLY
+        delta_after = delta.after
+        if isinstance(delta_after, str) and CHANGESET_KNOWN_AFTER_APPLY in delta_after:
+            delta.after = CHANGESET_KNOWN_AFTER_APPLY
+        return delta
+
     def _register_resource_change(
         self,
         logical_id: str,
         type_: str,
+        physical_id: Optional[str],
         before_properties: Optional[PreprocProperties],
         after_properties: Optional[PreprocProperties],
     ) -> None:
-        # unchanged: nothing to do.
-        if before_properties == after_properties:
-            return
-
         action = cfn_api.ChangeAction.Modify
         if before_properties is None:
             action = cfn_api.ChangeAction.Add
@@ -96,6 +120,8 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
         resource_change["Action"] = action
         resource_change["LogicalResourceId"] = logical_id
         resource_change["ResourceType"] = type_
+        if physical_id:
+            resource_change["PhysicalResourceId"] = physical_id
         if self._include_property_values and before_properties is not None:
             before_context_properties = {PropertiesKey: before_properties.properties}
             before_context_properties_json_str = json.dumps(before_context_properties)
@@ -111,12 +137,16 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
     def _describe_resource_change(
         self, name: str, before: Optional[PreprocResource], after: Optional[PreprocResource]
     ) -> None:
+        if before == after:
+            # unchanged: nothing to do.
+            return
         if before is not None and after is not None:
             # Case: change on same type.
             if before.resource_type == after.resource_type:
                 # Register a Modified if changed.
                 self._register_resource_change(
                     logical_id=name,
+                    physical_id=before.physical_resource_id,
                     type_=before.resource_type,
                     before_properties=before.properties,
                     after_properties=after.properties,
@@ -127,6 +157,7 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
                 # Register a Removed for the previous type.
                 self._register_resource_change(
                     logical_id=name,
+                    physical_id=before.physical_resource_id,
                     type_=before.resource_type,
                     before_properties=before.properties,
                     after_properties=None,
@@ -134,6 +165,7 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
                 # Register a Create for the next type.
                 self._register_resource_change(
                     logical_id=name,
+                    physical_id=None,
                     type_=after.resource_type,
                     before_properties=None,
                     after_properties=after.properties,
@@ -142,6 +174,7 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
             # Case: removal
             self._register_resource_change(
                 logical_id=name,
+                physical_id=before.physical_resource_id,
                 type_=before.resource_type,
                 before_properties=before.properties,
                 after_properties=None,
@@ -150,6 +183,7 @@ class ChangeSetModelDescriber(ChangeSetModelPreproc):
             # Case: addition
             self._register_resource_change(
                 logical_id=name,
+                physical_id=None,
                 type_=after.resource_type,
                 before_properties=None,
                 after_properties=after.properties,
