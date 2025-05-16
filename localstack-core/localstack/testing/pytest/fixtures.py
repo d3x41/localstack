@@ -21,6 +21,7 @@ from pytest_httpserver import HTTPServer
 from werkzeug import Request, Response
 
 from localstack import config
+from localstack.aws.api.ec2 import CreateSecurityGroupRequest
 from localstack.aws.connect import ServiceLevelClientFactory
 from localstack.services.stores import (
     AccountRegionBundle,
@@ -42,7 +43,7 @@ from localstack.utils.aws.arns import get_partition
 from localstack.utils.aws.client import SigningHttpClient
 from localstack.utils.aws.resources import create_dynamodb_table
 from localstack.utils.bootstrap import is_api_enabled
-from localstack.utils.collections import ensure_list
+from localstack.utils.collections import ensure_list, select_from_typed_dict
 from localstack.utils.functions import call_safe, run_safe
 from localstack.utils.http import safe_requests as requests
 from localstack.utils.id_generator import ResourceIdentifier, localstack_id_manager
@@ -1974,29 +1975,60 @@ def ses_verify_identity(aws_client):
 
 
 @pytest.fixture
+def setup_sender_email_address(ses_verify_identity):
+    """
+    If the test is running against AWS then assume the email address passed is already
+    verified, and passes the given email address through. Otherwise, it generates one random
+    email address and verify them.
+    """
+
+    def inner(sender_email_address: Optional[str] = None) -> str:
+        if is_aws_cloud():
+            if sender_email_address is None:
+                raise ValueError(
+                    "sender_email_address must be specified to run this test against AWS"
+                )
+        else:
+            # overwrite the given parameters with localstack specific ones
+            sender_email_address = f"sender-{short_uid()}@example.com"
+            ses_verify_identity(sender_email_address)
+
+        return sender_email_address
+
+    return inner
+
+
+@pytest.fixture
 def ec2_create_security_group(aws_client):
     ec2_sgs = []
 
-    def factory(ports=None, **kwargs):
+    def factory(ports=None, ip_protocol: str = "tcp", **kwargs):
+        """
+        Create the target group and authorize the security group ingress.
+        :param ports: list of ports to be authorized for the ingress rule.
+        :param ip_protocol: the ip protocol for the permissions (tcp by default)
+        """
         if "GroupName" not in kwargs:
-            kwargs["GroupName"] = f"test-sg-{short_uid()}"
-        security_group = aws_client.ec2.create_security_group(**kwargs)
-
+            kwargs["GroupName"] = f"sg-{short_uid()}"
+        # Making sure the call to CreateSecurityGroup gets the right arguments
+        _args = select_from_typed_dict(CreateSecurityGroupRequest, kwargs)
+        security_group = aws_client.ec2.create_security_group(**_args)
+        security_group_id = security_group["GroupId"]
         permissions = [
             {
                 "FromPort": port,
-                "IpProtocol": "tcp",
+                "IpProtocol": ip_protocol,
                 "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
                 "ToPort": port,
             }
             for port in ports or []
         ]
         aws_client.ec2.authorize_security_group_ingress(
-            GroupName=kwargs["GroupName"],
+            GroupId=security_group_id,
             IpPermissions=permissions,
         )
 
-        ec2_sgs.append(security_group["GroupId"])
+        ec2_sgs.append(security_group_id)
         return security_group
 
     yield factory

@@ -548,6 +548,7 @@ class CreateConnectionRequest(ServiceRequest):
     AuthorizationType: ConnectionAuthorizationType
     AuthParameters: CreateConnectionAuthRequestParameters
     InvocationConnectivityParameters: Optional[ConnectivityResourceParameters]
+    KmsKeyIdentifier: Optional[KmsKeyIdentifier]
 
 
 class CreateConnectionResponse(TypedDict, total=False):
@@ -757,6 +758,7 @@ class DescribeConnectionResponse(TypedDict, total=False):
     StateReason: Optional[ConnectionStateReason]
     AuthorizationType: Optional[ConnectionAuthorizationType]
     SecretArn: Optional[SecretsManagerSecretArn]
+    KmsKeyIdentifier: Optional[KmsKeyIdentifier]
     AuthParameters: Optional[ConnectionAuthResponseParameters]
     CreationTime: Optional[Timestamp]
     LastModifiedTime: Optional[Timestamp]
@@ -1504,6 +1506,7 @@ class UpdateConnectionRequest(ServiceRequest):
     AuthorizationType: Optional[ConnectionAuthorizationType]
     AuthParameters: Optional[UpdateConnectionAuthRequestParameters]
     InvocationConnectivityParameters: Optional[ConnectivityResourceParameters]
+    KmsKeyIdentifier: Optional[KmsKeyIdentifier]
 
 
 class UpdateConnectionResponse(TypedDict, total=False):
@@ -1574,8 +1577,8 @@ class EventsApi:
         connection_arn: ConnectionArn,
         invocation_endpoint: HttpsEndpoint,
         http_method: ApiDestinationHttpMethod,
-        description: ApiDestinationDescription = None,
-        invocation_rate_limit_per_second: ApiDestinationInvocationRateLimitPerSecond = None,
+        description: ApiDestinationDescription | None = None,
+        invocation_rate_limit_per_second: ApiDestinationInvocationRateLimitPerSecond | None = None,
         **kwargs,
     ) -> CreateApiDestinationResponse:
         raise NotImplementedError
@@ -1586,10 +1589,10 @@ class EventsApi:
         context: RequestContext,
         archive_name: ArchiveName,
         event_source_arn: EventBusArn,
-        description: ArchiveDescription = None,
-        event_pattern: EventPattern = None,
-        retention_days: RetentionDays = None,
-        kms_key_identifier: KmsKeyIdentifier = None,
+        description: ArchiveDescription | None = None,
+        event_pattern: EventPattern | None = None,
+        retention_days: RetentionDays | None = None,
+        kms_key_identifier: KmsKeyIdentifier | None = None,
         **kwargs,
     ) -> CreateArchiveResponse:
         raise NotImplementedError
@@ -1601,8 +1604,9 @@ class EventsApi:
         name: ConnectionName,
         authorization_type: ConnectionAuthorizationType,
         auth_parameters: CreateConnectionAuthRequestParameters,
-        description: ConnectionDescription = None,
-        invocation_connectivity_parameters: ConnectivityResourceParameters = None,
+        description: ConnectionDescription | None = None,
+        invocation_connectivity_parameters: ConnectivityResourceParameters | None = None,
+        kms_key_identifier: KmsKeyIdentifier | None = None,
         **kwargs,
     ) -> CreateConnectionResponse:
         raise NotImplementedError
@@ -1614,9 +1618,9 @@ class EventsApi:
         name: EndpointName,
         routing_config: RoutingConfig,
         event_buses: EndpointEventBusList,
-        description: EndpointDescription = None,
-        replication_config: ReplicationConfig = None,
-        role_arn: IamRoleArn = None,
+        description: EndpointDescription | None = None,
+        replication_config: ReplicationConfig | None = None,
+        role_arn: IamRoleArn | None = None,
         **kwargs,
     ) -> CreateEndpointResponse:
         raise NotImplementedError
@@ -1626,11 +1630,11 @@ class EventsApi:
         self,
         context: RequestContext,
         name: EventBusName,
-        event_source_name: EventSourceName = None,
-        description: EventBusDescription = None,
-        kms_key_identifier: KmsKeyIdentifier = None,
-        dead_letter_config: DeadLetterConfig = None,
-        tags: TagList = None,
+        event_source_name: EventSourceName | None = None,
+        description: EventBusDescription | None = None,
+        kms_key_identifier: KmsKeyIdentifier | None = None,
+        dead_letter_config: DeadLetterConfig | None = None,
+        tags: TagList | None = None,
         **kwargs,
     ) -> CreateEventBusResponse:
         raise NotImplementedError
@@ -1692,8 +1696,8 @@ class EventsApi:
         self,
         context: RequestContext,
         name: RuleName,
-        event_bus_name: EventBusNameOrArn = None,
-        force: Boolean = None,
+        event_bus_name: EventBusNameOrArn | None = None,
+        force: Boolean | None = None,
         **kwargs,
     ) -> None:
         raise NotImplementedError
@@ -1718,13 +1722,17 @@ class EventsApi:
 
     @handler("DescribeEndpoint")
     def describe_endpoint(
-        self, context: RequestContext, name: EndpointName, home_region: HomeRegion = None, **kwargs
+        self,
+        context: RequestContext,
+        name: EndpointName,
+        home_region: HomeRegion | None = None,
+        **kwargs,
     ) -> DescribeEndpointResponse:
         raise NotImplementedError
 
     @handler("DescribeEventBus")
     def describe_event_bus(
-        self, context: RequestContext, name: EventBusNameOrArn = None, **kwargs
+        self, context: RequestContext, name: EventBusNameOrArn | None = None, **kwargs
     ) -> DescribeEventBusResponse:
         raise NotImplementedError
 
@@ -1751,7 +1759,7 @@ class EventsApi:
         self,
         context: RequestContext,
         name: RuleName,
-        event_bus_name: EventBusNameOrArn = None,
+        event_bus_name: EventBusNameOrArn | None = None,
         **kwargs,
     ) -> DescribeRuleResponse:
         raise NotImplementedError
@@ -1761,7 +1769,7 @@ class EventsApi:
         self,
         context: RequestContext,
         name: RuleName,
-        event_bus_name: EventBusNameOrArn = None,
+        event_bus_name: EventBusNameOrArn | None = None,
         **kwargs,
     ) -> None:
         raise NotImplementedError
@@ -1771,7 +1779,7 @@ class EventsApi:
         self,
         context: RequestContext,
         name: RuleName,
-        event_bus_name: EventBusNameOrArn = None,
+        event_bus_name: EventBusNameOrArn | None = None,
         **kwargs,
     ) -> None:
         raise NotImplementedError
@@ -1780,10 +1788,10 @@ class EventsApi:
     def list_api_destinations(
         self,
         context: RequestContext,
-        name_prefix: ApiDestinationName = None,
-        connection_arn: ConnectionArn = None,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        name_prefix: ApiDestinationName | None = None,
+        connection_arn: ConnectionArn | None = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListApiDestinationsResponse:
         raise NotImplementedError
@@ -1792,11 +1800,11 @@ class EventsApi:
     def list_archives(
         self,
         context: RequestContext,
-        name_prefix: ArchiveName = None,
-        event_source_arn: EventBusArn = None,
-        state: ArchiveState = None,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        name_prefix: ArchiveName | None = None,
+        event_source_arn: EventBusArn | None = None,
+        state: ArchiveState | None = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListArchivesResponse:
         raise NotImplementedError
@@ -1805,10 +1813,10 @@ class EventsApi:
     def list_connections(
         self,
         context: RequestContext,
-        name_prefix: ConnectionName = None,
-        connection_state: ConnectionState = None,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        name_prefix: ConnectionName | None = None,
+        connection_state: ConnectionState | None = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListConnectionsResponse:
         raise NotImplementedError
@@ -1817,10 +1825,10 @@ class EventsApi:
     def list_endpoints(
         self,
         context: RequestContext,
-        name_prefix: EndpointName = None,
-        home_region: HomeRegion = None,
-        next_token: NextToken = None,
-        max_results: LimitMax100 = None,
+        name_prefix: EndpointName | None = None,
+        home_region: HomeRegion | None = None,
+        next_token: NextToken | None = None,
+        max_results: LimitMax100 | None = None,
         **kwargs,
     ) -> ListEndpointsResponse:
         raise NotImplementedError
@@ -1829,9 +1837,9 @@ class EventsApi:
     def list_event_buses(
         self,
         context: RequestContext,
-        name_prefix: EventBusName = None,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        name_prefix: EventBusName | None = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListEventBusesResponse:
         raise NotImplementedError
@@ -1840,9 +1848,9 @@ class EventsApi:
     def list_event_sources(
         self,
         context: RequestContext,
-        name_prefix: EventSourceNamePrefix = None,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        name_prefix: EventSourceNamePrefix | None = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListEventSourcesResponse:
         raise NotImplementedError
@@ -1852,8 +1860,8 @@ class EventsApi:
         self,
         context: RequestContext,
         event_source_name: EventSourceName,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListPartnerEventSourceAccountsResponse:
         raise NotImplementedError
@@ -1863,8 +1871,8 @@ class EventsApi:
         self,
         context: RequestContext,
         name_prefix: PartnerEventSourceNamePrefix,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListPartnerEventSourcesResponse:
         raise NotImplementedError
@@ -1873,11 +1881,11 @@ class EventsApi:
     def list_replays(
         self,
         context: RequestContext,
-        name_prefix: ReplayName = None,
-        state: ReplayState = None,
-        event_source_arn: ArchiveArn = None,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        name_prefix: ReplayName | None = None,
+        state: ReplayState | None = None,
+        event_source_arn: ArchiveArn | None = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListReplaysResponse:
         raise NotImplementedError
@@ -1887,9 +1895,9 @@ class EventsApi:
         self,
         context: RequestContext,
         target_arn: TargetArn,
-        event_bus_name: EventBusNameOrArn = None,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        event_bus_name: EventBusNameOrArn | None = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListRuleNamesByTargetResponse:
         raise NotImplementedError
@@ -1898,10 +1906,10 @@ class EventsApi:
     def list_rules(
         self,
         context: RequestContext,
-        name_prefix: RuleName = None,
-        event_bus_name: EventBusNameOrArn = None,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        name_prefix: RuleName | None = None,
+        event_bus_name: EventBusNameOrArn | None = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListRulesResponse:
         raise NotImplementedError
@@ -1917,9 +1925,9 @@ class EventsApi:
         self,
         context: RequestContext,
         rule: RuleName,
-        event_bus_name: EventBusNameOrArn = None,
-        next_token: NextToken = None,
-        limit: LimitMax100 = None,
+        event_bus_name: EventBusNameOrArn | None = None,
+        next_token: NextToken | None = None,
+        limit: LimitMax100 | None = None,
         **kwargs,
     ) -> ListTargetsByRuleResponse:
         raise NotImplementedError
@@ -1929,7 +1937,7 @@ class EventsApi:
         self,
         context: RequestContext,
         entries: PutEventsRequestEntryList,
-        endpoint_id: EndpointId = None,
+        endpoint_id: EndpointId | None = None,
         **kwargs,
     ) -> PutEventsResponse:
         raise NotImplementedError
@@ -1944,12 +1952,12 @@ class EventsApi:
     def put_permission(
         self,
         context: RequestContext,
-        event_bus_name: NonPartnerEventBusName = None,
-        action: Action = None,
-        principal: Principal = None,
-        statement_id: StatementId = None,
-        condition: Condition = None,
-        policy: String = None,
+        event_bus_name: NonPartnerEventBusName | None = None,
+        action: Action | None = None,
+        principal: Principal | None = None,
+        statement_id: StatementId | None = None,
+        condition: Condition | None = None,
+        policy: String | None = None,
         **kwargs,
     ) -> None:
         raise NotImplementedError
@@ -1959,13 +1967,13 @@ class EventsApi:
         self,
         context: RequestContext,
         name: RuleName,
-        schedule_expression: ScheduleExpression = None,
-        event_pattern: EventPattern = None,
-        state: RuleState = None,
-        description: RuleDescription = None,
-        role_arn: RoleArn = None,
-        tags: TagList = None,
-        event_bus_name: EventBusNameOrArn = None,
+        schedule_expression: ScheduleExpression | None = None,
+        event_pattern: EventPattern | None = None,
+        state: RuleState | None = None,
+        description: RuleDescription | None = None,
+        role_arn: RoleArn | None = None,
+        tags: TagList | None = None,
+        event_bus_name: EventBusNameOrArn | None = None,
         **kwargs,
     ) -> PutRuleResponse:
         raise NotImplementedError
@@ -1976,7 +1984,7 @@ class EventsApi:
         context: RequestContext,
         rule: RuleName,
         targets: TargetList,
-        event_bus_name: EventBusNameOrArn = None,
+        event_bus_name: EventBusNameOrArn | None = None,
         **kwargs,
     ) -> PutTargetsResponse:
         raise NotImplementedError
@@ -1985,9 +1993,9 @@ class EventsApi:
     def remove_permission(
         self,
         context: RequestContext,
-        statement_id: StatementId = None,
-        remove_all_permissions: Boolean = None,
-        event_bus_name: NonPartnerEventBusName = None,
+        statement_id: StatementId | None = None,
+        remove_all_permissions: Boolean | None = None,
+        event_bus_name: NonPartnerEventBusName | None = None,
         **kwargs,
     ) -> None:
         raise NotImplementedError
@@ -1998,8 +2006,8 @@ class EventsApi:
         context: RequestContext,
         rule: RuleName,
         ids: TargetIdList,
-        event_bus_name: EventBusNameOrArn = None,
-        force: Boolean = None,
+        event_bus_name: EventBusNameOrArn | None = None,
+        force: Boolean | None = None,
         **kwargs,
     ) -> RemoveTargetsResponse:
         raise NotImplementedError
@@ -2013,7 +2021,7 @@ class EventsApi:
         event_start_time: Timestamp,
         event_end_time: Timestamp,
         destination: ReplayDestination,
-        description: ReplayDescription = None,
+        description: ReplayDescription | None = None,
         **kwargs,
     ) -> StartReplayResponse:
         raise NotImplementedError
@@ -2041,11 +2049,11 @@ class EventsApi:
         self,
         context: RequestContext,
         name: ApiDestinationName,
-        description: ApiDestinationDescription = None,
-        connection_arn: ConnectionArn = None,
-        invocation_endpoint: HttpsEndpoint = None,
-        http_method: ApiDestinationHttpMethod = None,
-        invocation_rate_limit_per_second: ApiDestinationInvocationRateLimitPerSecond = None,
+        description: ApiDestinationDescription | None = None,
+        connection_arn: ConnectionArn | None = None,
+        invocation_endpoint: HttpsEndpoint | None = None,
+        http_method: ApiDestinationHttpMethod | None = None,
+        invocation_rate_limit_per_second: ApiDestinationInvocationRateLimitPerSecond | None = None,
         **kwargs,
     ) -> UpdateApiDestinationResponse:
         raise NotImplementedError
@@ -2055,10 +2063,10 @@ class EventsApi:
         self,
         context: RequestContext,
         archive_name: ArchiveName,
-        description: ArchiveDescription = None,
-        event_pattern: EventPattern = None,
-        retention_days: RetentionDays = None,
-        kms_key_identifier: KmsKeyIdentifier = None,
+        description: ArchiveDescription | None = None,
+        event_pattern: EventPattern | None = None,
+        retention_days: RetentionDays | None = None,
+        kms_key_identifier: KmsKeyIdentifier | None = None,
         **kwargs,
     ) -> UpdateArchiveResponse:
         raise NotImplementedError
@@ -2068,10 +2076,11 @@ class EventsApi:
         self,
         context: RequestContext,
         name: ConnectionName,
-        description: ConnectionDescription = None,
-        authorization_type: ConnectionAuthorizationType = None,
-        auth_parameters: UpdateConnectionAuthRequestParameters = None,
-        invocation_connectivity_parameters: ConnectivityResourceParameters = None,
+        description: ConnectionDescription | None = None,
+        authorization_type: ConnectionAuthorizationType | None = None,
+        auth_parameters: UpdateConnectionAuthRequestParameters | None = None,
+        invocation_connectivity_parameters: ConnectivityResourceParameters | None = None,
+        kms_key_identifier: KmsKeyIdentifier | None = None,
         **kwargs,
     ) -> UpdateConnectionResponse:
         raise NotImplementedError
@@ -2081,11 +2090,11 @@ class EventsApi:
         self,
         context: RequestContext,
         name: EndpointName,
-        description: EndpointDescription = None,
-        routing_config: RoutingConfig = None,
-        replication_config: ReplicationConfig = None,
-        event_buses: EndpointEventBusList = None,
-        role_arn: IamRoleArn = None,
+        description: EndpointDescription | None = None,
+        routing_config: RoutingConfig | None = None,
+        replication_config: ReplicationConfig | None = None,
+        event_buses: EndpointEventBusList | None = None,
+        role_arn: IamRoleArn | None = None,
         **kwargs,
     ) -> UpdateEndpointResponse:
         raise NotImplementedError
@@ -2094,10 +2103,10 @@ class EventsApi:
     def update_event_bus(
         self,
         context: RequestContext,
-        name: EventBusName = None,
-        kms_key_identifier: KmsKeyIdentifier = None,
-        description: EventBusDescription = None,
-        dead_letter_config: DeadLetterConfig = None,
+        name: EventBusName | None = None,
+        kms_key_identifier: KmsKeyIdentifier | None = None,
+        description: EventBusDescription | None = None,
+        dead_letter_config: DeadLetterConfig | None = None,
         **kwargs,
     ) -> UpdateEventBusResponse:
         raise NotImplementedError

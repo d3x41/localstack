@@ -10,6 +10,7 @@ from localstack_snapshot.snapshots.transformer import (
     TransformContext,
 )
 
+from localstack import config
 from localstack.aws.api.stepfunctions import (
     Arn,
     CloudWatchLogsLogGroup,
@@ -27,6 +28,7 @@ from localstack.aws.api.stepfunctions import (
 from localstack.services.stepfunctions.asl.eval.event.logging import is_logging_enabled_for
 from localstack.services.stepfunctions.asl.utils.encoding import to_json_str
 from localstack.services.stepfunctions.asl.utils.json_path import NoSuchJsonPathError, extract_json
+from localstack.testing.aws.util import is_aws_cloud
 from localstack.utils.strings import short_uid
 from localstack.utils.sync import poll_condition
 
@@ -36,6 +38,16 @@ LOG = logging.getLogger(__name__)
 # For EXPRESS state machines, the deletion will happen eventually (usually less than a minute).
 # Running executions may emit logs after DeleteStateMachine API is called.
 _DELETION_TIMEOUT_SECS: Final[int] = 120
+_SAMPLING_INTERVAL_SECONDS_AWS_CLOUD: Final[int] = 1
+_SAMPLING_INTERVAL_SECONDS_LOCALSTACK: Final[float] = 0.2
+
+
+def _get_sampling_interval_seconds() -> int | float:
+    return (
+        _SAMPLING_INTERVAL_SECONDS_AWS_CLOUD
+        if is_aws_cloud()
+        else _SAMPLING_INTERVAL_SECONDS_LOCALSTACK
+    )
 
 
 def await_no_state_machines_listed(stepfunctions_client):
@@ -47,7 +59,7 @@ def await_no_state_machines_listed(stepfunctions_client):
     success = poll_condition(
         condition=_is_empty_state_machine_list,
         timeout=_DELETION_TIMEOUT_SECS,
-        interval=1,
+        interval=_get_sampling_interval_seconds(),
     )
     if not success:
         LOG.warning("Timed out whilst awaiting for listing to be empty.")
@@ -76,7 +88,7 @@ def await_state_machine_alias_is_created(
             state_machine_alias_arn=state_machine_alias_arn,
         ),
         timeout=_DELETION_TIMEOUT_SECS,
-        interval=1,
+        interval=_get_sampling_interval_seconds(),
     )
     if not success:
         LOG.warning("Timed out whilst awaiting for listing to be empty.")
@@ -92,7 +104,7 @@ def await_state_machine_alias_is_deleted(
             state_machine_alias_arn=state_machine_alias_arn,
         ),
         timeout=_DELETION_TIMEOUT_SECS,
-        interval=1,
+        interval=_get_sampling_interval_seconds(),
     )
     if not success:
         LOG.warning("Timed out whilst awaiting for listing to be empty.")
@@ -122,7 +134,7 @@ def await_state_machine_not_listed(stepfunctions_client, state_machine_arn: str)
     success = poll_condition(
         condition=lambda: not _is_state_machine_listed(stepfunctions_client, state_machine_arn),
         timeout=_DELETION_TIMEOUT_SECS,
-        interval=1,
+        interval=_get_sampling_interval_seconds(),
     )
     if not success:
         LOG.warning("Timed out whilst awaiting for listing to exclude '%s'.", state_machine_arn)
@@ -132,7 +144,7 @@ def await_state_machine_listed(stepfunctions_client, state_machine_arn: str):
     success = poll_condition(
         condition=lambda: _is_state_machine_listed(stepfunctions_client, state_machine_arn),
         timeout=_DELETION_TIMEOUT_SECS,
-        interval=1,
+        interval=_get_sampling_interval_seconds(),
     )
     if not success:
         LOG.warning("Timed out whilst awaiting for listing to include '%s'.", state_machine_arn)
@@ -146,7 +158,7 @@ def await_state_machine_version_not_listed(
             stepfunctions_client, state_machine_arn, state_machine_version_arn
         ),
         timeout=_DELETION_TIMEOUT_SECS,
-        interval=1,
+        interval=_get_sampling_interval_seconds(),
     )
     if not success:
         LOG.warning(
@@ -164,7 +176,7 @@ def await_state_machine_version_listed(
             stepfunctions_client, state_machine_arn, state_machine_version_arn
         ),
         timeout=_DELETION_TIMEOUT_SECS,
-        interval=1,
+        interval=_get_sampling_interval_seconds(),
     )
     if not success:
         LOG.warning(
@@ -190,7 +202,9 @@ def await_on_execution_events(
         res: bool = check_func(events)
         return res
 
-    assert poll_condition(condition=_run_check, timeout=120, interval=1)
+    assert poll_condition(
+        condition=_run_check, timeout=120, interval=_get_sampling_interval_seconds()
+    )
     return events
 
 
@@ -223,7 +237,9 @@ def await_list_execution_status(
             return True
         return False
 
-    success = poll_condition(condition=_run_check, timeout=120, interval=1)
+    success = poll_condition(
+        condition=_run_check, timeout=120, interval=_get_sampling_interval_seconds()
+    )
     if not success:
         LOG.warning(
             "Timed out whilst awaiting for execution status %s to satisfy condition for execution '%s'.",
@@ -264,7 +280,9 @@ def await_execution_lists_terminated(
                 return execution["status"] != ExecutionStatus.RUNNING
         return False
 
-    success = poll_condition(condition=_check_last_is_terminal, timeout=120, interval=1)
+    success = poll_condition(
+        condition=_check_last_is_terminal, timeout=120, interval=_get_sampling_interval_seconds()
+    )
     if not success:
         LOG.warning(
             "Timed out whilst awaiting for execution events to satisfy condition for execution '%s'.",
@@ -291,7 +309,9 @@ def await_execution_aborted(stepfunctions_client, execution_arn: str):
         status: ExecutionStatus = desc_res["status"]
         return status == ExecutionStatus.ABORTED
 
-    success = poll_condition(condition=_run_check, timeout=120, interval=1)
+    success = poll_condition(
+        condition=_run_check, timeout=120, interval=_get_sampling_interval_seconds()
+    )
     if not success:
         LOG.warning("Timed out whilst awaiting for execution '%s' to abort.", execution_arn)
 
@@ -383,6 +403,7 @@ def create_state_machine_with_iam_role(
     snapshot,
     definition: Definition,
     logging_configuration: Optional[LoggingConfiguration] = None,
+    state_machine_name: Optional[str] = None,
 ):
     snf_role_arn = create_state_machine_iam_role(target_aws_client=target_aws_client)
     snapshot.add_transformer(RegexTransformer(snf_role_arn, "snf_role_arn"))
@@ -396,7 +417,7 @@ def create_state_machine_with_iam_role(
         RegexTransformer("Request ID: [a-zA-Z0-9-]+", "Request ID: <request_id>")
     )
 
-    sm_name: str = f"statemachine_create_and_record_execution_{short_uid()}"
+    sm_name: str = state_machine_name or f"statemachine_create_and_record_execution_{short_uid()}"
     create_arguments = {
         "name": sm_name,
         "definition": definition,
@@ -431,6 +452,42 @@ def launch_and_record_execution(
     if verify_execution_description:
         describe_execution = stepfunctions_client.describe_execution(executionArn=execution_arn)
         sfn_snapshot.match("describe_execution", describe_execution)
+
+    get_execution_history = stepfunctions_client.get_execution_history(executionArn=execution_arn)
+
+    # Transform all map runs if any.
+    try:
+        map_run_arns = extract_json("$..mapRunArn", get_execution_history)
+        if isinstance(map_run_arns, str):
+            map_run_arns = [map_run_arns]
+        for i, map_run_arn in enumerate(list(set(map_run_arns))):
+            sfn_snapshot.add_transformer(sfn_snapshot.transform.sfn_map_run_arn(map_run_arn, i))
+    except NoSuchJsonPathError:
+        # No mapRunArns
+        pass
+
+    sfn_snapshot.match("get_execution_history", get_execution_history)
+
+    return execution_arn
+
+
+def launch_and_record_mocked_execution(
+    target_aws_client,
+    sfn_snapshot,
+    state_machine_arn,
+    execution_input,
+    test_name,
+) -> LongArn:
+    stepfunctions_client = target_aws_client.stepfunctions
+    exec_resp = stepfunctions_client.start_execution(
+        stateMachineArn=f"{state_machine_arn}#{test_name}", input=execution_input
+    )
+    sfn_snapshot.add_transformer(sfn_snapshot.transform.sfn_sm_exec_arn(exec_resp, 0))
+    execution_arn = exec_resp["executionArn"]
+
+    await_execution_terminated(
+        stepfunctions_client=stepfunctions_client, execution_arn=execution_arn
+    )
 
     get_execution_history = stepfunctions_client.get_execution_history(executionArn=execution_arn)
 
@@ -487,7 +544,6 @@ def launch_and_record_logs(
     sfn_snapshot.match("logged_execution_events", logged_execution_events)
 
 
-# TODO: make this return the execution ARN for manual assertions
 def create_and_record_execution(
     target_aws_client,
     create_state_machine_iam_role,
@@ -496,7 +552,7 @@ def create_and_record_execution(
     definition,
     execution_input,
     verify_execution_description=False,
-):
+) -> LongArn:
     state_machine_arn = create_state_machine_with_iam_role(
         target_aws_client,
         create_state_machine_iam_role,
@@ -504,13 +560,72 @@ def create_and_record_execution(
         sfn_snapshot,
         definition,
     )
-    launch_and_record_execution(
+    exeuction_arn = launch_and_record_execution(
         target_aws_client,
         sfn_snapshot,
         state_machine_arn,
         execution_input,
         verify_execution_description,
     )
+    return exeuction_arn
+
+
+def create_and_record_mocked_execution(
+    target_aws_client,
+    create_state_machine_iam_role,
+    create_state_machine,
+    sfn_snapshot,
+    definition,
+    execution_input,
+    state_machine_name,
+    test_name,
+) -> LongArn:
+    state_machine_arn = create_state_machine_with_iam_role(
+        target_aws_client,
+        create_state_machine_iam_role,
+        create_state_machine,
+        sfn_snapshot,
+        definition,
+        state_machine_name=state_machine_name,
+    )
+    execution_arn = launch_and_record_mocked_execution(
+        target_aws_client, sfn_snapshot, state_machine_arn, execution_input, test_name
+    )
+    return execution_arn
+
+
+def create_and_run_mock(
+    target_aws_client,
+    monkeypatch,
+    mock_config_file,
+    mock_config: dict,
+    state_machine_name: str,
+    definition_template: dict,
+    execution_input: str,
+    test_name: str,
+):
+    mock_config_file_path = mock_config_file(mock_config)
+    monkeypatch.setattr(config, "SFN_MOCK_CONFIG", mock_config_file_path)
+
+    sfn_client = target_aws_client.stepfunctions
+
+    state_machine_name: str = state_machine_name or f"mocked_statemachine_{short_uid()}"
+    definition = json.dumps(definition_template)
+    creation_response = sfn_client.create_state_machine(
+        name=state_machine_name,
+        definition=definition,
+        roleArn="arn:aws:iam::111111111111:role/mock-role/mocked-run",
+    )
+    state_machine_arn = creation_response["stateMachineArn"]
+
+    test_case_arn = f"{state_machine_arn}#{test_name}"
+    execution = sfn_client.start_execution(stateMachineArn=test_case_arn, input=execution_input)
+    execution_arn = execution["executionArn"]
+
+    await_execution_terminated(stepfunctions_client=sfn_client, execution_arn=execution_arn)
+    sfn_client.delete_state_machine(stateMachineArn=state_machine_arn)
+
+    return execution_arn
 
 
 def create_and_record_logs(

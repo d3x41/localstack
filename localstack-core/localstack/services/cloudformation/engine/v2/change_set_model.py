@@ -149,21 +149,24 @@ class NodeDivergence(ChangeSetNode):
 
 class NodeParameter(ChangeSetNode):
     name: Final[str]
-    value: Final[ChangeSetEntity]
+    type_: Final[ChangeSetEntity]
     dynamic_value: Final[ChangeSetEntity]
+    default_value: Final[Optional[ChangeSetEntity]]
 
     def __init__(
         self,
         scope: Scope,
         change_type: ChangeType,
         name: str,
-        value: ChangeSetEntity,
+        type_: ChangeSetEntity,
         dynamic_value: ChangeSetEntity,
+        default_value: Optional[ChangeSetEntity],
     ):
         super().__init__(scope=scope, change_type=change_type)
         self.name = name
-        self.value = value
+        self.type_ = type_
         self.dynamic_value = dynamic_value
+        self.default_value = default_value
 
 
 class NodeParameters(ChangeSetNode):
@@ -358,20 +361,23 @@ MappingsKey: Final[str] = "Mappings"
 ResourcesKey: Final[str] = "Resources"
 PropertiesKey: Final[str] = "Properties"
 ParametersKey: Final[str] = "Parameters"
+DefaultKey: Final[str] = "Default"
 ValueKey: Final[str] = "Value"
 ExportKey: Final[str] = "Export"
 OutputsKey: Final[str] = "Outputs"
 # TODO: expand intrinsic functions set.
 RefKey: Final[str] = "Ref"
-FnIf: Final[str] = "Fn::If"
-FnNot: Final[str] = "Fn::Not"
+FnIfKey: Final[str] = "Fn::If"
+FnNotKey: Final[str] = "Fn::Not"
+FnJoinKey: Final[str] = "Fn::Join"
 FnGetAttKey: Final[str] = "Fn::GetAtt"
 FnEqualsKey: Final[str] = "Fn::Equals"
 FnFindInMapKey: Final[str] = "Fn::FindInMap"
 INTRINSIC_FUNCTIONS: Final[set[str]] = {
     RefKey,
-    FnIf,
-    FnNot,
+    FnIfKey,
+    FnNotKey,
+    FnJoinKey,
     FnEqualsKey,
     FnGetAttKey,
     FnFindInMapKey,
@@ -583,7 +589,12 @@ class ChangeSetModel:
                 scope=value_scope, before_value=before_value, after_value=after_value
             )
             array.append(value)
-        change_type = self._change_type_for_parent_of([value.change_type for value in array])
+        if self._is_created(before=before_array, after=after_array):
+            change_type = ChangeType.CREATED
+        elif self._is_removed(before=before_array, after=after_array):
+            change_type = ChangeType.REMOVED
+        else:
+            change_type = self._change_type_for_parent_of([value.change_type for value in array])
         return NodeArray(scope=scope, change_type=change_type, array=array)
 
     def _visit_object(
@@ -592,8 +603,12 @@ class ChangeSetModel:
         node_object = self._visited_scopes.get(scope)
         if isinstance(node_object, NodeObject):
             return node_object
-
-        change_type = ChangeType.UNCHANGED
+        if self._is_created(before=before_object, after=after_object):
+            change_type = ChangeType.CREATED
+        elif self._is_removed(before=before_object, after=after_object):
+            change_type = ChangeType.REMOVED
+        else:
+            change_type = ChangeType.UNCHANGED
         binding_names = self._safe_keys_of(before_object, after_object)
         bindings: dict[str, ChangeSetEntity] = dict()
         for binding_name in binding_names:
@@ -769,7 +784,10 @@ class ChangeSetModel:
             before_properties=before_properties,
             after_properties=after_properties,
         )
-        change_type = change_type.for_child(properties.change_type)
+        if properties.properties:
+            # Properties were defined in the before or after template, thus must play a role
+            # in affecting the change type of this resource.
+            change_type = change_type.for_child(properties.change_type)
         node_resource = NodeResource(
             scope=scope,
             change_type=change_type,
@@ -852,19 +870,29 @@ class ChangeSetModel:
         node_parameter = self._visited_scopes.get(scope)
         if isinstance(node_parameter, NodeParameter):
             return node_parameter
-        # TODO: add logic to compute defaults already in the graph building process?
+
+        type_scope, (before_type, after_type) = self._safe_access_in(
+            scope, TypeKey, before_parameter, after_parameter
+        )
+        type_ = self._visit_value(type_scope, before_type, after_type)
+
+        default_scope, (before_default, after_default) = self._safe_access_in(
+            scope, DefaultKey, before_parameter, after_parameter
+        )
+        default_value = self._visit_value(default_scope, before_default, after_default)
+
         dynamic_value = self._visit_dynamic_parameter(parameter_name=parameter_name)
-        value = self._visit_value(
-            scope=scope, before_value=before_parameter, after_value=after_parameter
-        )
+
         change_type = self._change_type_for_parent_of(
-            change_types=[dynamic_value.change_type, value.change_type]
+            change_types=[type_.change_type, default_value.change_type, dynamic_value.change_type]
         )
+
         node_parameter = NodeParameter(
             scope=scope,
             change_type=change_type,
             name=parameter_name,
-            value=value,
+            type_=type_,
+            default_value=default_value,
             dynamic_value=dynamic_value,
         )
         self._visited_scopes[scope] = node_parameter

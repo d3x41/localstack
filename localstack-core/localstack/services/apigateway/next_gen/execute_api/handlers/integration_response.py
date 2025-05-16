@@ -69,7 +69,7 @@ class IntegrationResponseHandler(RestApiGatewayHandler):
         # we first need to find the right IntegrationResponse based on their selection template, linked to the status
         # code of the Response
         if integration_type == IntegrationType.AWS and "lambda:path/" in integration["uri"]:
-            selection_value = self.parse_error_message_from_lambda(body) or str(status_code)
+            selection_value = self.parse_error_message_from_lambda(body)
         else:
             selection_value = str(status_code)
 
@@ -263,7 +263,7 @@ class IntegrationResponseHandler(RestApiGatewayHandler):
         self, context: RestApiInvocationContext, template: str, body: bytes | str
     ) -> tuple[bytes, ContextVarsResponseOverride]:
         if not template:
-            return to_bytes(body), ContextVarsResponseOverride(status=0, header={})
+            return to_bytes(body), context.context_variable_overrides["responseOverride"]
 
         # if there are no template, we can pass binary data through
         if not isinstance(body, str):
@@ -284,6 +284,7 @@ class IntegrationResponseHandler(RestApiGatewayHandler):
                     ),
                 ),
             ),
+            context_overrides=context.context_variable_overrides,
         )
 
         # AWS ignores the status if the override isn't an integer between 100 and 599

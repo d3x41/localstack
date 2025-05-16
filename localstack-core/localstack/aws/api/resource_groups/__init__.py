@@ -287,6 +287,7 @@ class GetTagSyncTaskOutput(TypedDict, total=False):
     TaskArn: Optional[TagSyncTaskArn]
     TagKey: Optional[TagKey]
     TagValue: Optional[TagValue]
+    ResourceQuery: Optional[ResourceQuery]
     RoleArn: Optional[RoleArn]
     Status: Optional[TagSyncTaskStatus]
     ErrorMessage: Optional[ErrorMessage]
@@ -463,6 +464,7 @@ class TagSyncTaskItem(TypedDict, total=False):
     TaskArn: Optional[TagSyncTaskArn]
     TagKey: Optional[TagKey]
     TagValue: Optional[TagValue]
+    ResourceQuery: Optional[ResourceQuery]
     RoleArn: Optional[RoleArn]
     Status: Optional[TagSyncTaskStatus]
     ErrorMessage: Optional[ErrorMessage]
@@ -500,8 +502,9 @@ class SearchResourcesOutput(TypedDict, total=False):
 
 class StartTagSyncTaskInput(ServiceRequest):
     Group: GroupStringV2
-    TagKey: TagKey
-    TagValue: TagValue
+    TagKey: Optional[TagKey]
+    TagValue: Optional[TagValue]
+    ResourceQuery: Optional[ResourceQuery]
     RoleArn: RoleArn
 
 
@@ -511,6 +514,7 @@ class StartTagSyncTaskOutput(TypedDict, total=False):
     TaskArn: Optional[TagSyncTaskArn]
     TagKey: Optional[TagKey]
     TagValue: Optional[TagValue]
+    ResourceQuery: Optional[ResourceQuery]
     RoleArn: Optional[RoleArn]
 
 
@@ -594,13 +598,13 @@ class ResourceGroupsApi:
         self,
         context: RequestContext,
         name: CreateGroupName,
-        description: Description = None,
-        resource_query: ResourceQuery = None,
-        tags: Tags = None,
-        configuration: GroupConfigurationList = None,
-        criticality: Criticality = None,
-        owner: Owner = None,
-        display_name: DisplayName = None,
+        description: Description | None = None,
+        resource_query: ResourceQuery | None = None,
+        tags: Tags | None = None,
+        configuration: GroupConfigurationList | None = None,
+        criticality: Criticality | None = None,
+        owner: Owner | None = None,
+        display_name: DisplayName | None = None,
         **kwargs,
     ) -> CreateGroupOutput:
         raise NotImplementedError
@@ -609,8 +613,8 @@ class ResourceGroupsApi:
     def delete_group(
         self,
         context: RequestContext,
-        group_name: GroupName = None,
-        group: GroupStringV2 = None,
+        group_name: GroupName | None = None,
+        group: GroupStringV2 | None = None,
         **kwargs,
     ) -> DeleteGroupOutput:
         raise NotImplementedError
@@ -623,15 +627,15 @@ class ResourceGroupsApi:
     def get_group(
         self,
         context: RequestContext,
-        group_name: GroupName = None,
-        group: GroupStringV2 = None,
+        group_name: GroupName | None = None,
+        group: GroupStringV2 | None = None,
         **kwargs,
     ) -> GetGroupOutput:
         raise NotImplementedError
 
     @handler("GetGroupConfiguration")
     def get_group_configuration(
-        self, context: RequestContext, group: GroupString = None, **kwargs
+        self, context: RequestContext, group: GroupString | None = None, **kwargs
     ) -> GetGroupConfigurationOutput:
         raise NotImplementedError
 
@@ -639,8 +643,8 @@ class ResourceGroupsApi:
     def get_group_query(
         self,
         context: RequestContext,
-        group_name: GroupName = None,
-        group: GroupString = None,
+        group_name: GroupName | None = None,
+        group: GroupString | None = None,
         **kwargs,
     ) -> GetGroupQueryOutput:
         raise NotImplementedError
@@ -669,11 +673,11 @@ class ResourceGroupsApi:
     def list_group_resources(
         self,
         context: RequestContext,
-        group_name: GroupName = None,
-        group: GroupStringV2 = None,
-        filters: ResourceFilterList = None,
-        max_results: MaxResults = None,
-        next_token: NextToken = None,
+        group_name: GroupName | None = None,
+        group: GroupStringV2 | None = None,
+        filters: ResourceFilterList | None = None,
+        max_results: MaxResults | None = None,
+        next_token: NextToken | None = None,
         **kwargs,
     ) -> ListGroupResourcesOutput:
         raise NotImplementedError
@@ -683,9 +687,9 @@ class ResourceGroupsApi:
         self,
         context: RequestContext,
         group: GroupStringV2,
-        max_results: MaxResults = None,
-        filters: ListGroupingStatusesFilterList = None,
-        next_token: NextToken = None,
+        max_results: MaxResults | None = None,
+        filters: ListGroupingStatusesFilterList | None = None,
+        next_token: NextToken | None = None,
         **kwargs,
     ) -> ListGroupingStatusesOutput:
         raise NotImplementedError
@@ -694,9 +698,9 @@ class ResourceGroupsApi:
     def list_groups(
         self,
         context: RequestContext,
-        filters: GroupFilterList = None,
-        max_results: MaxResults = None,
-        next_token: NextToken = None,
+        filters: GroupFilterList | None = None,
+        max_results: MaxResults | None = None,
+        next_token: NextToken | None = None,
         **kwargs,
     ) -> ListGroupsOutput:
         raise NotImplementedError
@@ -705,9 +709,9 @@ class ResourceGroupsApi:
     def list_tag_sync_tasks(
         self,
         context: RequestContext,
-        filters: ListTagSyncTasksFilterList = None,
-        max_results: MaxResults = None,
-        next_token: NextToken = None,
+        filters: ListTagSyncTasksFilterList | None = None,
+        max_results: MaxResults | None = None,
+        next_token: NextToken | None = None,
         **kwargs,
     ) -> ListTagSyncTasksOutput:
         raise NotImplementedError
@@ -716,8 +720,8 @@ class ResourceGroupsApi:
     def put_group_configuration(
         self,
         context: RequestContext,
-        group: GroupString = None,
-        configuration: GroupConfigurationList = None,
+        group: GroupString | None = None,
+        configuration: GroupConfigurationList | None = None,
         **kwargs,
     ) -> PutGroupConfigurationOutput:
         raise NotImplementedError
@@ -727,8 +731,8 @@ class ResourceGroupsApi:
         self,
         context: RequestContext,
         resource_query: ResourceQuery,
-        max_results: MaxResults = None,
-        next_token: NextToken = None,
+        max_results: MaxResults | None = None,
+        next_token: NextToken | None = None,
         **kwargs,
     ) -> SearchResourcesOutput:
         raise NotImplementedError
@@ -738,9 +742,10 @@ class ResourceGroupsApi:
         self,
         context: RequestContext,
         group: GroupStringV2,
-        tag_key: TagKey,
-        tag_value: TagValue,
         role_arn: RoleArn,
+        tag_key: TagKey | None = None,
+        tag_value: TagValue | None = None,
+        resource_query: ResourceQuery | None = None,
         **kwargs,
     ) -> StartTagSyncTaskOutput:
         raise NotImplementedError
@@ -769,7 +774,7 @@ class ResourceGroupsApi:
     def update_account_settings(
         self,
         context: RequestContext,
-        group_lifecycle_events_desired_status: GroupLifecycleEventsDesiredStatus = None,
+        group_lifecycle_events_desired_status: GroupLifecycleEventsDesiredStatus | None = None,
         **kwargs,
     ) -> UpdateAccountSettingsOutput:
         raise NotImplementedError
@@ -778,12 +783,12 @@ class ResourceGroupsApi:
     def update_group(
         self,
         context: RequestContext,
-        group_name: GroupName = None,
-        group: GroupStringV2 = None,
-        description: Description = None,
-        criticality: Criticality = None,
-        owner: Owner = None,
-        display_name: DisplayName = None,
+        group_name: GroupName | None = None,
+        group: GroupStringV2 | None = None,
+        description: Description | None = None,
+        criticality: Criticality | None = None,
+        owner: Owner | None = None,
+        display_name: DisplayName | None = None,
         **kwargs,
     ) -> UpdateGroupOutput:
         raise NotImplementedError
@@ -793,8 +798,8 @@ class ResourceGroupsApi:
         self,
         context: RequestContext,
         resource_query: ResourceQuery,
-        group_name: GroupName = None,
-        group: GroupString = None,
+        group_name: GroupName | None = None,
+        group: GroupString | None = None,
         **kwargs,
     ) -> UpdateGroupQueryOutput:
         raise NotImplementedError
