@@ -605,7 +605,7 @@ class HostAndPort:
     def is_unprivileged(self) -> bool:
         return self.port >= self._get_unprivileged_port_range_start()
 
-    def host_and_port(self):
+    def host_and_port(self) -> str:
         formatted_host = f"[{self.host}]" if is_ipv6_address(self.host) else self.host
         return f"{formatted_host}:{self.port}" if self.port is not None else formatted_host
 
@@ -895,6 +895,20 @@ KINESIS_MOCK_LOG_LEVEL = os.environ.get("KINESIS_MOCK_LOG_LEVEL", "").strip()
 
 # randomly inject faults to Kinesis
 KINESIS_ERROR_PROBABILITY = float(os.environ.get("KINESIS_ERROR_PROBABILITY", "").strip() or 0.0)
+
+# SEMI-PUBLIC: "node" (default); not actively communicated
+# Select whether to use the node or scala build when running Kinesis Mock
+KINESIS_MOCK_PROVIDER_ENGINE = os.environ.get("KINESIS_MOCK_PROVIDER_ENGINE", "").strip() or "node"
+
+# set the maximum Java heap size corresponding to the '-Xmx<size>' flag
+KINESIS_MOCK_MAXIMUM_HEAP_SIZE = (
+    os.environ.get("KINESIS_MOCK_MAXIMUM_HEAP_SIZE", "").strip() or "512m"
+)
+
+# set the initial Java heap size corresponding to the '-Xms<size>' flag
+KINESIS_MOCK_INITIAL_HEAP_SIZE = (
+    os.environ.get("KINESIS_MOCK_INITIAL_HEAP_SIZE", "").strip() or "256m"
+)
 
 # randomly inject faults to DynamoDB
 DYNAMODB_ERROR_PROBABILITY = float(os.environ.get("DYNAMODB_ERROR_PROBABILITY", "").strip() or 0.0)

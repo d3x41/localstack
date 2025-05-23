@@ -157,11 +157,7 @@ def _get_sqs_request_headers():
 def test_skeleton_e2e_sqs_send_message():
     sqs_service = load_service("sqs-query")
     skeleton = Skeleton(sqs_service, TestSqsApi())
-    context = RequestContext()
-    context.account = "test"
-    context.region = "us-west-1"
-    context.service = sqs_service
-    context.request = Request(
+    request = Request(
         **{
             "method": "POST",
             "path": "/",
@@ -169,6 +165,10 @@ def test_skeleton_e2e_sqs_send_message():
             "headers": _get_sqs_request_headers(),
         }
     )
+    context = RequestContext(request)
+    context.account = "test"
+    context.region = "us-west-1"
+    context.service = sqs_service
     result = skeleton.invoke(context)
 
     # Use the parser from botocore to parse the serialized response
@@ -200,8 +200,11 @@ def test_skeleton_e2e_sqs_send_message():
     [
         (
             TestSqsApiNotImplemented(),
-            "API action 'SendMessage' for service 'sqs' not yet implemented or pro feature"
-            " - please check https://docs.localstack.cloud/references/coverage/coverage_sqs/ for further information",
+            (
+                "The API action 'SendMessage' for service 'sqs' is either not available "
+                "in your current license plan or has not yet been emulated by LocalStack. "
+                "Please refer to https://docs.localstack.cloud/references/coverage/coverage_sqs for more information."
+            ),
         ),
         (
             TestSqsApiNotImplementedWithMessage(),
@@ -212,11 +215,7 @@ def test_skeleton_e2e_sqs_send_message():
 def test_skeleton_e2e_sqs_send_message_not_implemented(api_class, oracle_message):
     sqs_service = load_service("sqs-query")
     skeleton = Skeleton(sqs_service, api_class)
-    context = RequestContext()
-    context.account = "test"
-    context.region = "us-west-1"
-    context.service = sqs_service
-    context.request = Request(
+    request = Request(
         **{
             "method": "POST",
             "path": "/",
@@ -224,6 +223,10 @@ def test_skeleton_e2e_sqs_send_message_not_implemented(api_class, oracle_message
             "headers": _get_sqs_request_headers(),
         }
     )
+    context = RequestContext(request)
+    context.account = "test"
+    context.region = "us-west-1"
+    context.service = sqs_service
     result = skeleton.invoke(context)
 
     # Use the parser from botocore to parse the serialized response
@@ -257,11 +260,7 @@ def test_dispatch_common_service_exception():
     sqs_service = load_service("sqs-query")
     skeleton = Skeleton(sqs_service, table)
 
-    context = RequestContext()
-    context.account = "test"
-    context.region = "us-west-1"
-    context.service = sqs_service
-    context.request = Request(
+    request = Request(
         **{
             "method": "POST",
             "path": "/",
@@ -269,6 +268,10 @@ def test_dispatch_common_service_exception():
             "headers": _get_sqs_request_headers(),
         }
     )
+    context = RequestContext(request)
+    context.account = "test"
+    context.region = "us-west-1"
+    context.service = sqs_service
     result = skeleton.invoke(context)
 
     # Use the parser from botocore to parse the serialized response
@@ -290,11 +293,7 @@ def test_dispatch_missing_method_returns_internal_failure():
     sqs_service = load_service("sqs-query")
     skeleton = Skeleton(sqs_service, table)
 
-    context = RequestContext()
-    context.account = "test"
-    context.region = "us-west-1"
-    context.service = sqs_service
-    context.request = Request(
+    request = Request(
         **{
             "method": "POST",
             "path": "/",
@@ -302,6 +301,10 @@ def test_dispatch_missing_method_returns_internal_failure():
             "headers": _get_sqs_request_headers(),
         }
     )
+    context = RequestContext(request)
+    context.account = "test"
+    context.region = "us-west-1"
+    context.service = sqs_service
 
     result = skeleton.invoke(context)
     # Use the parser from botocore to parse the serialized response
@@ -312,8 +315,11 @@ def test_dispatch_missing_method_returns_internal_failure():
     assert "Error" in parsed_response
     assert parsed_response["Error"] == {
         "Code": "InternalFailure",
-        "Message": "API action 'DeleteQueue' for service 'sqs' not yet implemented or pro feature - please check "
-        "https://docs.localstack.cloud/references/coverage/coverage_sqs/ for further information",
+        "Message": (
+            "The API action 'DeleteQueue' for service 'sqs' is either not available in your "
+            "current license plan or has not yet been emulated by LocalStack. "
+            "Please refer to https://docs.localstack.cloud/references/coverage/coverage_sqs for more information."
+        ),
     }
 
 
@@ -329,7 +335,7 @@ class TestServiceRequestDispatcher:
             assert arg_two == 69
 
         dispatcher = ServiceRequestDispatcher(fn, "SomeAction")
-        dispatcher(RequestContext(), SomeAction(ArgOne="foo", ArgTwo=69))
+        dispatcher(RequestContext(None), SomeAction(ArgOne="foo", ArgTwo=69))
 
     def test_without_context_without_expand(self):
         def fn(*args):
@@ -339,7 +345,7 @@ class TestServiceRequestDispatcher:
         dispatcher = ServiceRequestDispatcher(
             fn, "SomeAction", pass_context=False, expand_parameters=False
         )
-        dispatcher(RequestContext(), ServiceRequest())
+        dispatcher(RequestContext(None), ServiceRequest())
 
     def test_without_expand(self):
         def fn(*args):
@@ -350,11 +356,11 @@ class TestServiceRequestDispatcher:
         dispatcher = ServiceRequestDispatcher(
             fn, "SomeAction", pass_context=True, expand_parameters=False
         )
-        dispatcher(RequestContext(), ServiceRequest())
+        dispatcher(RequestContext(None), ServiceRequest())
 
     def test_dispatch_without_args(self):
         def fn(context):
             assert type(context) == RequestContext
 
         dispatcher = ServiceRequestDispatcher(fn, "SomeAction")
-        dispatcher(RequestContext(), ServiceRequest())
+        dispatcher(RequestContext(None), ServiceRequest())

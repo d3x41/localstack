@@ -1541,14 +1541,19 @@ class LambdaProvider(LambdaApi, ServiceLifecycleHook):
                 RepositoryType=image.repository_type,
                 ResolvedImageUri=image.resolved_image_uri,
             )
+        concurrency = None
+        if fn.reserved_concurrent_executions:
+            concurrency = Concurrency(
+                ReservedConcurrentExecutions=fn.reserved_concurrent_executions
+            )
 
         return GetFunctionResponse(
             Configuration=api_utils.map_config_out(
                 version, return_qualified_arn=bool(qualifier), alias_name=alias_name
             ),
             Code=code_location,  # TODO
+            Concurrency=concurrency,
             **additional_fields,
-            # Concurrency={},  # TODO
         )
 
     def get_function_configuration(
@@ -1988,6 +1993,8 @@ class LambdaProvider(LambdaApi, ServiceLifecycleHook):
 
     def validate_event_source_mapping(self, context, request):
         # TODO: test whether stream ARNs are valid sources for Pipes or ESM or whether only DynamoDB table ARNs work
+        # TODO: Validate MaxRecordAgeInSeconds (i.e cannot subceed 60s but can be -1) and MaxRetryAttempts parameters.
+        # See https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-eventsourcemapping.html#cfn-lambda-eventsourcemapping-maximumrecordageinseconds
         is_create_esm_request = context.operation.name == self.create_event_source_mapping.operation
 
         if destination_config := request.get("DestinationConfig"):

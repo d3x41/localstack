@@ -2,17 +2,19 @@ import pytest
 from localstack_snapshot.snapshots.transformer import RegexTransformer
 
 from localstack.services.cloudformation.v2.utils import is_v2_engine
+from localstack.testing.aws.util import is_aws_cloud
 from localstack.testing.pytest import markers
 from localstack.utils.strings import long_uid
 
 
-@pytest.mark.skipif(condition=not is_v2_engine(), reason="Requires the V2 engine")
+@pytest.mark.skipif(
+    condition=not is_v2_engine() and not is_aws_cloud(), reason="Requires the V2 engine"
+)
 @markers.snapshot.skip_snapshot_verify(
     paths=[
         "per-resource-events..*",
         "delete-describe..*",
         #
-        "$..ChangeSetId",  # An issue for the WIP executor
         # Before/After Context
         "$..Capabilities",
         "$..NotificationARNs",
@@ -22,7 +24,6 @@ from localstack.utils.strings import long_uid
         "$..Parameters",
         "$..Replacement",
         "$..PolicyAction",
-        "$..PhysicalResourceId",
     ]
 )
 class TestChangeSetRef:
@@ -302,6 +303,43 @@ class TestChangeSetRef:
                     "Properties": {
                         "TopicName": name2,
                         "DisplayName": {"Ref": "Topic1"},
+                    },
+                },
+            }
+        }
+        capture_update_process(snapshot, template_1, template_2)
+
+    @markers.aws.validated
+    def test_supported_pseudo_parameter(
+        self,
+        snapshot,
+        capture_update_process,
+    ):
+        topic_name_1 = f"topic-name-1-{long_uid()}"
+        snapshot.add_transformer(RegexTransformer(topic_name_1, "topic_name_1"))
+        topic_name_2 = f"topic-name-2-{long_uid()}"
+        snapshot.add_transformer(RegexTransformer(topic_name_2, "topic_name_2"))
+        snapshot.add_transformer(RegexTransformer("amazonaws.com", "url_suffix"))
+        snapshot.add_transformer(RegexTransformer("localhost.localstack.cloud", "url_suffix"))
+        template_1 = {
+            "Resources": {
+                "Topic1": {"Type": "AWS::SNS::Topic", "Properties": {"TopicName": topic_name_1}},
+            }
+        }
+        template_2 = {
+            "Resources": {
+                "Topic2": {
+                    "Type": "AWS::SNS::Topic",
+                    "Properties": {
+                        "TopicName": topic_name_2,
+                        "Tags": [
+                            {"Key": "Partition", "Value": {"Ref": "AWS::Partition"}},
+                            {"Key": "AccountId", "Value": {"Ref": "AWS::AccountId"}},
+                            {"Key": "Region", "Value": {"Ref": "AWS::Region"}},
+                            {"Key": "StackName", "Value": {"Ref": "AWS::StackName"}},
+                            {"Key": "StackId", "Value": {"Ref": "AWS::StackId"}},
+                            {"Key": "URLSuffix", "Value": {"Ref": "AWS::URLSuffix"}},
+                        ],
                     },
                 },
             }
